@@ -83,13 +83,27 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	processedVideoPath, err := processVideoForFastStart(tmpFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't process video for faster start", err)
+		return
+	}
+	defer os.Remove(processedVideoPath)
+
+	processedFile, err := os.Open(processedVideoPath)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error opening processed file", err)
+		return
+	}
+	defer processedFile.Close()
+
 	key, err := getAssetPath(mediaType)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create asset path", err)
 		return
 	}
 
-	directory, err := getVideoAspectRatioBasedDirectory(tmpFile.Name())
+	directory, err := getVideoAspectRatioBasedDirectory(processedFile.Name())
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create file prefix", err)
 		return
@@ -100,7 +114,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	s3ObjectInput := s3.PutObjectInput{
 		Bucket:      aws.String(cfg.s3Bucket),
 		Key:         aws.String(fullKey),
-		Body:        tmpFile,
+		Body:        processedFile,
 		ContentType: aws.String(mediaType),
 	}
 
