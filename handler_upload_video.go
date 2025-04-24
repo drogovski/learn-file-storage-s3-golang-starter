@@ -89,9 +89,17 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	directory, err := getVideoAspectRatioBasedDirectory(tmpFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create file prefix", err)
+		return
+	}
+
+	fullKey := createFullKey(directory, key)
+
 	s3ObjectInput := s3.PutObjectInput{
 		Bucket:      aws.String(cfg.s3Bucket),
-		Key:         aws.String(key),
+		Key:         aws.String(fullKey),
 		Body:        tmpFile,
 		ContentType: aws.String(mediaType),
 	}
@@ -102,7 +110,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	s3FileAdress := cfg.getObjectURL(key)
+	s3FileAdress := cfg.getObjectURL(fullKey)
 	video.VideoURL = &s3FileAdress
 	err = cfg.db.UpdateVideo(video)
 	if err != nil {
